@@ -1,4 +1,4 @@
-name: Build SFS Mod Manager Core
+name: Build SFS Mod Manager
 
 on:
   push:
@@ -6,24 +6,27 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
+  build-core-and-source-package:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
-      - name: Build
+      - name: Build portable core
         run: dotnet build src/SFSModManager.Core/SFSModManager.Core.csproj -c Release
       - name: Assemble ZIP
         run: |
-          mkdir -p package/SFS-Mod-Manager
+          mkdir -p package/SFS-Mod-Manager/Source
           cp README.md package/SFS-Mod-Manager/
-          cp src/SFSModManager.Core/bin/Release/netstandard2.0/SFSModManager.Core.dll package/SFS-Mod-Manager/
+          cp -R SFSModManager package/SFS-Mod-Manager/Source/
+          cp build-mod.sh package/SFS-Mod-Manager/
+          cp Dependencies/README.md package/SFS-Mod-Manager/Source/Dependencies-README.md
+          cp src/SFSModManager.Core/bin/Release/netstandard2.0/SFSModManager.Core.dll package/SFS-Mod-Manager/Source/
           cd package
-          zip -r ../SFS-Mod-Manager-core.zip SFS-Mod-Manager
+          zip -r ../SFS-Mod-Manager-source.zip SFS-Mod-Manager
       - uses: actions/upload-artifact@v4
         with:
-          name: SFS-Mod-Manager-core
-          path: SFS-Mod-Manager-core.zip
+          name: SFS-Mod-Manager-source
+          path: SFS-Mod-Manager-source.zip
           if-no-files-found: error
