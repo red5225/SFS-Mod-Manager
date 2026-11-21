@@ -31,9 +31,8 @@ jobs:
           )
           $missing = @($required | Where-Object { -not (Test-Path $_) })
           if ($missing.Count -gt 0) {
-            Write-Host "The game-specific DLL build is waiting for these reference assemblies:"
+            Write-Host "Installable DLL build skipped. Missing reference assemblies:"
             $missing | ForEach-Object { Write-Host " - $_" }
-            Write-Host "The source package will still be produced. Add the matching reference DLLs to Dependencies/ and rerun this workflow to build the installable mod."
             "SFS_REFERENCES_READY=false" | Out-File -FilePath $env:GITHUB_ENV -Append
           } else {
             "SFS_REFERENCES_READY=true" | Out-File -FilePath $env:GITHUB_ENV -Append
@@ -51,8 +50,11 @@ jobs:
         if: env.SFS_REFERENCES_READY == 'true'
         shell: pwsh
         run: |
+          if (-not (Test-Path "artifacts/SFSModManager.dll")) {
+            throw "Build completed without producing artifacts/SFSModManager.dll"
+          }
           New-Item -ItemType Directory -Force -Path package/SFS-Mod-Manager | Out-Null
-          Copy-Item SFSModManager/artifacts/SFSModManager.dll package/SFS-Mod-Manager/
+          Copy-Item artifacts/SFSModManager.dll package/SFS-Mod-Manager/
           Compress-Archive -Path package/SFS-Mod-Manager -DestinationPath SFS-Mod-Manager-installable.zip -Force
 
       - name: Package source fallback
