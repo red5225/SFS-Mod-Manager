@@ -18,14 +18,14 @@ namespace SFSModManager
         {
             if (_host != null) return;
             _host = new GameObject("SFSModManagerHost");
-            Object.DontDestroyOnLoad(_host);
+            UnityEngine.Object.DontDestroyOnLoad(_host);
             _host.AddComponent<ManagerOverlay>();
-            Debug.Log("[SFS Mod Manager] Loaded. Press F7 to open the manager.");
+            UnityEngine.Debug.Log("[SFS Mod Manager] Loaded. Press F7 to open the manager.");
         }
 
         public override void Load()
         {
-            Debug.Log("[SFS Mod Manager] Ready.");
+            UnityEngine.Debug.Log("[SFS Mod Manager] Ready.");
         }
     }
 }

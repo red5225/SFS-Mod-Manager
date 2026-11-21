@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
@@ -32,7 +31,7 @@ namespace SFSModManager
         private void Awake()
         {
             _modsFolder = ResolveModsFolder();
-            _settingsPath = Path.Combine(_modsFolder, ".sfsmodmanager.settings");
+            _settingsPath = System.IO.Path.Combine(_modsFolder, ".sfsmodmanager.settings");
             Refresh();
         }
 
@@ -81,24 +80,24 @@ namespace SFSModManager
         {
             var candidates = new List<string>();
             string cwd = Environment.CurrentDirectory;
-            candidates.Add(Path.Combine(cwd, "Mods"));
-            candidates.Add(Path.Combine(cwd, "MODS"));
+            candidates.Add(System.IO.Path.Combine(cwd, "Mods"));
+            candidates.Add(System.IO.Path.Combine(cwd, "MODS"));
             string data = Application.dataPath;
             if (!String.IsNullOrEmpty(data))
             {
                 string parent = Directory.GetParent(data)?.FullName;
                 if (!String.IsNullOrEmpty(parent))
                 {
-                    candidates.Add(Path.Combine(parent, "Mods"));
-                    candidates.Add(Path.Combine(parent, "MODS"));
-                    candidates.Add(Path.Combine(parent, "Contents", "Mods"));
-                    candidates.Add(Path.Combine(parent, "Contents", "MODS"));
+                    candidates.Add(System.IO.Path.Combine(parent, "Mods"));
+                    candidates.Add(System.IO.Path.Combine(parent, "MODS"));
+                    candidates.Add(System.IO.Path.Combine(parent, "Contents", "Mods"));
+                    candidates.Add(System.IO.Path.Combine(parent, "Contents", "MODS"));
                 }
             }
             var existing = candidates.FirstOrDefault(Directory.Exists);
             string chosen = existing ?? candidates[0];
             Directory.CreateDirectory(chosen);
-            Directory.CreateDirectory(Path.Combine(chosen, "Imports"));
+            Directory.CreateDirectory(System.IO.Path.Combine(chosen, "Imports"));
             return chosen;
         }
 
@@ -111,16 +110,16 @@ namespace SFSModManager
                 {
                     string lower = file.ToLowerInvariant();
                     if (!(lower.EndsWith(".dll") || lower.EndsWith(".dll.disabled"))) continue;
-                    if (Path.GetFileName(file).Equals("SFSModManager.dll", StringComparison.OrdinalIgnoreCase)) continue;
+                    if (System.IO.Path.GetFileName(file).Equals("SFSModManager.dll", StringComparison.OrdinalIgnoreCase)) continue;
                     bool enabled = lower.EndsWith(".dll");
                     string assemblyPath = enabled ? file : file.Substring(0, file.Length - ".disabled".Length);
-                    var row = new ModRow { Path = file, Name = Path.GetFileName(assemblyPath), Version = "Unknown", Enabled = enabled };
+                    var row = new ModRow { Path = file, Name = System.IO.Path.GetFileName(assemblyPath), Version = "Unknown", Enabled = enabled };
                     if (enabled)
                     {
                         try { row.Version = AssemblyName.GetAssemblyName(file).Version?.ToString() ?? "Unknown"; }
                         catch { row.Version = "Unreadable"; }
                     }
-                    string info = Path.ChangeExtension(assemblyPath, ".modinfo");
+                    string info = System.IO.Path.ChangeExtension(assemblyPath, ".modinfo");
                     if (File.Exists(info))
                     {
                         foreach (string line in File.ReadAllLines(info))
@@ -130,7 +129,7 @@ namespace SFSModManager
                     }
                     _mods.Add(row);
                 }
-                var installed = new HashSet<string>(_mods.Where(m => m.Enabled).Select(m => Path.GetFileName(m.Path)), StringComparer.OrdinalIgnoreCase);
+                var installed = new HashSet<string>(_mods.Where(m => m.Enabled).Select(m => System.IO.Path.GetFileName(m.Path)), StringComparer.OrdinalIgnoreCase);
                 foreach (var row in _mods.Where(m => !String.IsNullOrEmpty(m.Dependencies)))
                 {
                     var missing = row.Dependencies.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries).Select(x => x.Trim()).Where(x => !installed.Contains(x)).ToArray();
@@ -157,22 +156,22 @@ namespace SFSModManager
 
         private void InstallQueued()
         {
-            string imports = Path.Combine(_modsFolder, "Imports");
+            string imports = System.IO.Path.Combine(_modsFolder, "Imports");
             int count = 0;
             try
             {
                 foreach (string zip in Directory.GetFiles(imports, "*.zip", SearchOption.TopDirectoryOnly))
                 {
-                    string stage = Path.Combine(imports, ".stage_" + Guid.NewGuid().ToString("N"));
+                    string stage = System.IO.Path.Combine(imports, ".stage_" + Guid.NewGuid().ToString("N"));
                     Directory.CreateDirectory(stage);
                     try
                     {
                         ExtractSafe(zip, stage);
                         MergeWithoutOverwrite(stage, _modsFolder);
-                        string done = Path.Combine(imports, "Installed");
+                        string done = System.IO.Path.Combine(imports, "Installed");
                         Directory.CreateDirectory(done);
-                        string destination = Path.Combine(done, Path.GetFileName(zip));
-                        if (File.Exists(destination)) destination = Path.Combine(done, Guid.NewGuid().ToString("N") + "_" + Path.GetFileName(zip));
+                        string destination = System.IO.Path.Combine(done, System.IO.Path.GetFileName(zip));
+                        if (File.Exists(destination)) destination = System.IO.Path.Combine(done, Guid.NewGuid().ToString("N") + "_" + System.IO.Path.GetFileName(zip));
                         File.Move(zip, destination);
                         count++;
                     }
@@ -194,13 +193,13 @@ namespace SFSModManager
                     string normalized = entry.FullName.Replace('\\', '/');
                     if (normalized.StartsWith("/", StringComparison.Ordinal) || normalized.Split('/').Any(p => p == "..")) throw new InvalidDataException("Unsafe ZIP entry path: " + entry.FullName);
                     if (String.IsNullOrEmpty(normalized)) continue;
-                    string target = Path.GetFullPath(Path.Combine(destination, normalized.Replace('/', Path.DirectorySeparatorChar)));
-                    string root = Path.GetFullPath(destination) + Path.DirectorySeparatorChar;
+                    string target = System.IO.Path.GetFullPath(System.IO.Path.Combine(destination, normalized.Replace('/', System.IO.Path.DirectorySeparatorChar)));
+                    string root = System.IO.Path.GetFullPath(destination) + System.IO.Path.DirectorySeparatorChar;
                     if (!target.StartsWith(root, StringComparison.Ordinal)) throw new InvalidDataException("ZIP entry escapes destination.");
                     if (String.IsNullOrEmpty(entry.Name)) { Directory.CreateDirectory(target); continue; }
                     total += entry.Length;
                     if (total > MaxArchiveBytes) throw new InvalidDataException("ZIP exceeds the 200 MB extraction limit.");
-                    Directory.CreateDirectory(Path.GetDirectoryName(target));
+                    Directory.CreateDirectory(System.IO.Path.GetDirectoryName(target));
                     using (var input = entry.Open())
                     using (var output = new FileStream(target, FileMode.CreateNew, FileAccess.Write, FileShare.None)) input.CopyTo(output);
                 }
@@ -211,14 +210,14 @@ namespace SFSModManager
         {
             foreach (string dir in Directory.GetDirectories(source, "*", SearchOption.AllDirectories))
             {
-                string relative = dir.Substring(source.Length).TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-                Directory.CreateDirectory(Path.Combine(destination, relative));
+                string relative = dir.Substring(source.Length).TrimStart(System.IO.Path.DirectorySeparatorChar, System.IO.Path.AltDirectorySeparatorChar);
+                Directory.CreateDirectory(System.IO.Path.Combine(destination, relative));
             }
             foreach (string file in Directory.GetFiles(source, "*", SearchOption.AllDirectories))
             {
-                string relative = file.Substring(source.Length).TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-                string target = Path.Combine(destination, relative);
-                Directory.CreateDirectory(Path.GetDirectoryName(target));
+                string relative = file.Substring(source.Length).TrimStart(System.IO.Path.DirectorySeparatorChar, System.IO.Path.AltDirectorySeparatorChar);
+                string target = System.IO.Path.Combine(destination, relative);
+                Directory.CreateDirectory(System.IO.Path.GetDirectoryName(target));
                 if (File.Exists(target)) throw new IOException("Install would overwrite existing file: " + relative);
                 File.Move(file, target);
             }
@@ -228,10 +227,10 @@ namespace SFSModManager
         {
             try
             {
-                string path = Path.Combine(_modsFolder, "Imports");
+                string path = System.IO.Path.Combine(_modsFolder, "Imports");
                 Directory.CreateDirectory(path);
-                if (Application.platform == RuntimePlatform.OSXPlayer) Process.Start("open", "\"" + path + "\"");
-                else if (Application.platform == RuntimePlatform.WindowsPlayer) Process.Start("explorer.exe", "\"" + path + "\"");
+                if (Application.platform == RuntimePlatform.OSXPlayer) System.Diagnostics.Process.Start("open", "\"" + path + "\"");
+                else if (Application.platform == RuntimePlatform.WindowsPlayer) System.Diagnostics.Process.Start("explorer.exe", "\"" + path + "\"");
                 else _status = "Imports folder: " + path;
             }
             catch (Exception ex) { _status = "Could not open folder: " + ex.Message; }
@@ -241,7 +240,8 @@ namespace SFSModManager
         {
             try
             {
-                if (File.Exists(_settingsPath)) File.Delete(_settingsPath);
+                File.WriteAllText(_settingsPath, "default=true\n");
+                _scroll = Vector2.zero;
                 _status = "Manager preferences reset. Installed mods and saves were not touched.";
                 Refresh();
             }
