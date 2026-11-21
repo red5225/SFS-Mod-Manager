@@ -6,27 +6,75 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-core-and-source-package:
-    runs-on: ubuntu-latest
+  build:
+    runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
+
       - name: Build portable core
         run: dotnet build src/SFSModManager.Core/SFSModManager.Core.csproj -c Release
-      - name: Assemble ZIP
+
+      - name: Check game reference assemblies
+        shell: pwsh
         run: |
-          mkdir -p package/SFS-Mod-Manager/Source
-          cp README.md package/SFS-Mod-Manager/
-          cp -R SFSModManager package/SFS-Mod-Manager/Source/
-          cp build-mod.sh package/SFS-Mod-Manager/
-          cp Dependencies/README.md package/SFS-Mod-Manager/Source/Dependencies-README.md
-          cp src/SFSModManager.Core/bin/Release/netstandard2.0/SFSModManager.Core.dll package/SFS-Mod-Manager/Source/
-          cd package
-          zip -r ../SFS-Mod-Manager-source.zip SFS-Mod-Manager
-      - uses: actions/upload-artifact@v4
+          $required = @(
+            "Dependencies/ModLoader.dll",
+            "Dependencies/UnityEngine.dll",
+            "Dependencies/UnityEngine.CoreModule.dll",
+            "Dependencies/UnityEngine.IMGUIModule.dll"
+          )
+          $missing = @($required | Where-Object { -not (Test-Path $_) })
+          if ($missing.Count -gt 0) {
+            Write-Host "The game-specific DLL build is waiting for these reference assemblies:"
+            $missing | ForEach-Object { Write-Host " - $_" }
+            Write-Host "The source package will still be produced. Add the matching reference DLLs to Dependencies/ and rerun this workflow to build the installable mod."
+            "SFS_REFERENCES_READY=false" | Out-File -FilePath $env:GITHUB_ENV -Append
+          } else {
+            "SFS_REFERENCES_READY=true" | Out-File -FilePath $env:GITHUB_ENV -Append
+          }
+
+      - name: Set up MSBuild
+        if: env.SFS_REFERENCES_READY == 'true'
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Compile installable SFS mod
+        if: env.SFS_REFERENCES_READY == 'true'
+        run: msbuild SFSModManager/SFSModManager.csproj /p:Configuration=Release /p:RestorePackages=false /m
+
+      - name: Package installable mod
+        if: env.SFS_REFERENCES_READY == 'true'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path package/SFS-Mod-Manager | Out-Null
+          Copy-Item SFSModManager/artifacts/SFSModManager.dll package/SFS-Mod-Manager/
+          Compress-Archive -Path package/SFS-Mod-Manager -DestinationPath SFS-Mod-Manager-installable.zip -Force
+
+      - name: Package source fallback
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path package/SFS-Mod-Manager-Source | Out-Null
+          Copy-Item README.md package/SFS-Mod-Manager-Source/
+          Copy-Item -Recurse SFSModManager package/SFS-Mod-Manager-Source/
+          Copy-Item -Recurse src package/SFS-Mod-Manager-Source/
+          Copy-Item build-mod.sh package/SFS-Mod-Manager-Source/
+          Copy-Item Dependencies/README.md package/SFS-Mod-Manager-Source/Dependencies-README.md
+          Compress-Archive -Path package/SFS-Mod-Manager-Source -DestinationPath SFS-Mod-Manager-source.zip -Force
+
+      - name: Upload source package
+        uses: actions/upload-artifact@v4
         with:
           name: SFS-Mod-Manager-source
           path: SFS-Mod-Manager-source.zip
-          if-no-files-found: error
+
+      - name: Upload installable mod
+        if: env.SFS_REFERENCES_READY == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: SFS-Mod-Manager-installable
+          path: SFS-Mod-Manager-installable.zip
